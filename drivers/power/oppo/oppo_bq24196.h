@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright (c)  2014- 2014  Guangdong OPPO Mobile Telecommunications Corp., Ltd
-* CONFIG_MACH_OPPO
+* VENDOR_EDIT
 * Description: Source file for CBufferList.
 *           To allocate and free memory block safely.
 * Version   : 0.0
@@ -207,8 +207,6 @@
 
 /* Address:07h */
 #define REG07_BQ24196_ADDRESS                                   0x07
-#define REG07_BQ24196_BATFET_MASK							BIT(5)
-#define REG07_BQ24196_BATFET_OFF								BIT(5)
 
 
 /* Address:08h */
@@ -279,7 +277,7 @@ u8 pre_reg08_val = 0, pre_reg09_val = 0;
 extern u8 reg08_val, reg09_val;
 extern u8 pre_reg08_val, pre_reg09_val;
 #endif
-
+	
 OPPO_BQ24196_EXT int bq24196_get_prop_charge_type(struct opchg_charger *chip);
 OPPO_BQ24196_EXT int bq24196_get_prop_batt_status(struct opchg_charger *chip);
 OPPO_BQ24196_EXT int bq24196_get_charging_status(struct opchg_charger *chip);
@@ -304,7 +302,6 @@ OPPO_BQ24196_EXT int bq24196_set_float_voltage(struct opchg_charger *chip, int v
 OPPO_BQ24196_EXT int bq24196_set_input_chg_current(struct opchg_charger *chip, int iusbin_mA, bool aicl);
 OPPO_BQ24196_EXT int bq24196_set_complete_charge_timeout(struct opchg_charger *chip, int val);
 OPPO_BQ24196_EXT int bq24196_set_wdt_timer(struct opchg_charger *chip, bool enable);
-OPPO_BQ24196_EXT void bq24196_set_batfet_off(struct opchg_charger *chip);
 OPPO_BQ24196_EXT int bq24196_set_wdt_reset(struct opchg_charger *chip);
 OPPO_BQ24196_EXT int bq24196_check_charging_pre_full(struct opchg_charger *chip);
 OPPO_BQ24196_EXT int bq24196_check_battovp(struct opchg_charger *chip);

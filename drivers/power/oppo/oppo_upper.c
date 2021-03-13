@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright (c)  2014- 2014  Guangdong OPPO Mobile Telecommunications Corp., Ltd
-* CONFIG_MACH_OPPO
+* VENDOR_EDIT
 * Description: Source file for CBufferList.
 *           To allocate and free memory block safely.
 * Version   : 0.0
@@ -13,7 +13,7 @@
 *******************************************************************************/
 
 #define OPPO_UPPER_PAR
-#include "oppo_inc.h"
+#include <oppo_inc.h>
 
 
 /* add supplied to "bms" function */
@@ -65,11 +65,11 @@ static void opchg_external_power_changed(struct power_supply *psy)
     struct opchg_charger *chip = container_of(psy, struct opchg_charger, batt_psy);
     union power_supply_propval prop = {0,};
     int rc, current_limit = 0, online = 0;
-
+    
     if (chip->bms_psy_name) {
         chip->bms_psy = power_supply_get_by_name((char *)chip->bms_psy_name);
     }
-
+    
     rc = chip->usb_psy->get_property(chip->usb_psy, POWER_SUPPLY_PROP_ONLINE, &prop);
     if (rc) {
         dev_err(chip->dev, "Couldn't read USB online property, rc=%d\n", rc);
@@ -77,7 +77,7 @@ static void opchg_external_power_changed(struct power_supply *psy)
 	else {
         online = prop.intval;
     }
-
+    
     rc = chip->usb_psy->get_property(chip->usb_psy, POWER_SUPPLY_PROP_CURRENT_MAX, &prop);
     if (rc) {
         dev_err(chip->dev, "Couldn't read USB current_max property, rc=%d\n", rc);
@@ -85,7 +85,7 @@ static void opchg_external_power_changed(struct power_supply *psy)
 	else {
         current_limit = prop.intval / 1000;
     }
-
+    
     if(current_limit > chip->limit_current_max_ma) {
         current_limit = chip->limit_current_max_ma;
     }
@@ -103,24 +103,39 @@ static void opchg_external_power_changed(struct power_supply *psy)
 	opchg_config_input_chg_current(chip, INPUT_CURRENT_CAMERA, chip->limit_current_max_ma);
     opchg_config_input_chg_current(chip, INPUT_CURRENT_BY_POWER, current_limit);
 
-	if(is_project(OPPO_15109)|| is_project(OPPO_15399))
+	/*huqiao@EXP.BasicDrv.Basic add for clone 15085*/
+	if(is_project(OPPO_14043) || is_project(OPPO_14037) || is_project(OPPO_14051) ||
+		is_project(OPPO_15005)|| is_project(OPPO_15057) ||is_project(OPPO_15025) ||
+		is_project(OPPO_15009)||is_project(OPPO_15037)|| is_project(OPPO_15035) ||
+        is_project(OPPO_15085) )
 		opchg_set_input_chg_current(chip, chip->max_input_current[INPUT_CURRENT_BY_POWER], false);
-	else
-	opchg_set_input_chg_current(chip, chip->max_input_current[INPUT_CURRENT_MIN], false);
+	else 
+    	opchg_set_input_chg_current(chip, chip->max_input_current[INPUT_CURRENT_MIN], false);
 
 	if ((chip->multiple_test == 1) && (current_limit >= 500)) {
 		opchg_config_suspend_enable(chip, FACTORY_ENABLE, 1);
 	}
-
+	
     opchg_config_over_time(chip, current_limit);//opchg_set_complete_charge_timeout(chip);
 	dev_dbg(chip->dev, "%s set charger input current=%d,online = %d, current_limit = %d\n", __func__,chip->max_input_current[INPUT_CURRENT_MIN], online, current_limit);
 
     opchg_check_status(chip);
-	opchg_set_status(chip, true);//opchg_set_status(chip, false);
+	opchg_set_status(chip, false);
 	if(chip->charging_opchg_temp_statu == OPCHG_CHG_TEMP_NORMAL)
 		opchg_set_fast_chg_current(chip, chip->max_fast_current[FAST_CURRENT_MIN]);
-
+	
     power_supply_changed(&chip->batt_psy);
+	
+	if(is_project(OPPO_14043) || is_project(OPPO_15005) || is_project(OPPO_15025)){
+		if(qpnp_charger_type_get(chip) == POWER_SUPPLY_TYPE_USB_DCP){
+			if(!chip->check_stat_again && (current_limit >= 500) && (chip->charging_current > -250)){
+				msleep(550);
+				opchg_check_status(chip);
+				chip->check_stat_again = true;
+				power_supply_changed(&chip->batt_psy);
+			}
+		} 
+	}
 }
 
 void opchg_property_config(struct opchg_charger *chip)
@@ -137,7 +152,7 @@ void opchg_property_config(struct opchg_charger *chip)
     chip->batt_psy.num_supplicants = ARRAY_SIZE(pm_batt_supplied_to);
 }
 void opchg_dc_property_config(struct opchg_charger *chip)
-{
+{	
 	chip->dc_psy.name = "qpnp-dc";
 	chip->dc_psy.type = POWER_SUPPLY_TYPE_MAINS;
 	chip->dc_psy.get_property = qpnp_power_get_property_mains;
@@ -147,7 +162,7 @@ void opchg_dc_property_config(struct opchg_charger *chip)
 	chip->dc_psy.num_properties = ARRAY_SIZE(pm_power_props_mains);
 	chip->dc_psy.supplied_to = pm_power_supplied_to;
 	chip->dc_psy.num_supplicants = ARRAY_SIZE(pm_power_supplied_to);
-
+	
 }
 
 static int show_cnfg_regs(struct seq_file *m, void *data)
@@ -156,21 +171,21 @@ static int show_cnfg_regs(struct seq_file *m, void *data)
     int rc;
     u8 reg;
     u8 addr;
-
+    
     for (addr = 0; addr <= LAST_CNFG_REG; addr++) {
         rc = opchg_read_reg(chip, addr, &reg);
         if (!rc) {
             seq_printf(m, "0x%02x = 0x%02x\n", addr, reg);
         }
     }
-
+    
     return 0;
 }
 
 static int cnfg_debugfs_open(struct inode *inode, struct file *file)
 {
     struct opchg_charger *chip = inode->i_private;
-
+    
     return single_open(file, show_cnfg_regs, chip);
 }
 
@@ -188,21 +203,21 @@ static int show_cmd_regs(struct seq_file *m, void *data)
     int rc;
     u8 reg;
     u8 addr;
-
+    
     for (addr = FIRST_CMD_REG; addr <= LAST_CMD_REG; addr++) {
         rc = opchg_read_reg(chip, addr, &reg);
         if (!rc) {
             seq_printf(m, "0x%02x = 0x%02x\n", addr, reg);
         }
     }
-
+    
     return 0;
 }
 
 static int cmd_debugfs_open(struct inode *inode, struct file *file)
 {
     struct opchg_charger *chip = inode->i_private;
-
+    
     return single_open(file, show_cmd_regs, chip);
 }
 
@@ -220,21 +235,21 @@ static int show_status_regs(struct seq_file *m, void *data)
     int rc;
     u8 reg;
     u8 addr;
-
+    
     for (addr = FIRST_STATUS_REG; addr <= LAST_STATUS_REG; addr++) {
         rc = opchg_read_reg(chip, addr, &reg);
         if (!rc) {
         seq_printf(m, "0x%02x = 0x%02x\n", addr, reg);
         }
     }
-
+    
     return 0;
 }
 
 static int status_debugfs_open(struct inode *inode, struct file *file)
 {
     struct opchg_charger *chip = inode->i_private;
-
+    
     return single_open(file, show_status_regs, chip);
 }
 
@@ -251,14 +266,14 @@ static int get_reg(void *data, u64 *val)
     struct opchg_charger *chip = data;
     int rc;
     u8 temp;
-
+    
     rc = opchg_read_reg(chip, chip->peek_poke_address, &temp);
     if (rc < 0) {
         dev_err(chip->dev, "Couldn't read reg %x rc = %d\n", chip->peek_poke_address, rc);
         return -EAGAIN;
     }
     *val = temp;
-
+    
     return 0;
 }
 
@@ -267,14 +282,14 @@ static int set_reg(void *data, u64 val)
     struct opchg_charger *chip = data;
     int rc;
     u8 temp;
-
+    
     temp = (u8) val;
     rc = opchg_write_reg(chip, chip->peek_poke_address, temp);
     if (rc < 0) {
         dev_err(chip->dev, "Couldn't write 0x%02x to 0x%02x rc= %d\n", chip->peek_poke_address, temp, rc);
         return -EAGAIN;
     }
-
+    
     return 0;
 }
 DEFINE_SIMPLE_ATTRIBUTE(poke_poke_debug_ops, get_reg, set_reg, "0x%02llx\n");
@@ -282,43 +297,43 @@ DEFINE_SIMPLE_ATTRIBUTE(poke_poke_debug_ops, get_reg, set_reg, "0x%02llx\n");
 void opchg_debugfs_create(struct opchg_charger *chip)
 {
     int rc = 0;
-
+    
     chip->debug_root = debugfs_create_dir("opchg", NULL);//debugfs_create_dir("smb358", NULL);
     if (!chip->debug_root) {
 		dev_err(chip->dev, "Couldn't create debug dir\n");
     }
-
+    
     if (chip->debug_root) {
         struct dentry *ent;
-
+        
         ent = debugfs_create_file("config_registers", S_IFREG | S_IRUGO,
                             chip->debug_root, chip,
                             &cnfg_debugfs_ops);
         if (!ent) {
             dev_err(chip->dev, "Couldn't create cnfg debug file rc = %d\n", rc);
         }
-
+        
         ent = debugfs_create_file("status_registers", S_IFREG | S_IRUGO,
                             chip->debug_root, chip,
                             &status_debugfs_ops);
         if (!ent) {
             dev_err(chip->dev, "Couldn't create status debug file rc = %d\n", rc);
         }
-
+        
         ent = debugfs_create_file("cmd_registers", S_IFREG | S_IRUGO,
                             chip->debug_root, chip,
                             &cmd_debugfs_ops);
         if (!ent) {
             dev_err(chip->dev, "Couldn't create cmd debug file rc = %d\n", rc);
         }
-
+        
         ent = debugfs_create_x32("address", S_IFREG | S_IWUSR | S_IRUGO,
                             chip->debug_root,
                             &(chip->peek_poke_address));
         if (!ent) {
             dev_err(chip->dev, "Couldn't create address debug file rc = %d\n", rc);
         }
-
+        
         ent = debugfs_create_file("data", S_IFREG | S_IWUSR | S_IRUGO,
                             chip->debug_root, chip,
                             &poke_poke_debug_ops);
@@ -339,7 +354,7 @@ int opchg_batt_property_is_writeable(struct power_supply *psy,
     default:
         break;
     }
-
+    
     return 0;
 }
 
@@ -350,7 +365,7 @@ int opchg_battery_set_property(struct power_supply *psy,
 	int rc;
     struct opchg_charger *chip = container_of(psy,
                             struct opchg_charger, batt_psy);
-
+                            
     switch (prop) {
 	case POWER_SUPPLY_PROP_STATUS:
 		if (!chip->bms_controlled_charging)
@@ -382,36 +397,47 @@ int opchg_battery_set_property(struct power_supply *psy,
 		default:
 				return -EINVAL;
 		}
-		break;
+		break;	
     case POWER_SUPPLY_PROP_CHARGING_ENABLED:
         opchg_config_charging_disable(chip, USER_DISABLE, !val->intval);//smb358_charging(chip, val->intval);
         break;
-
+        
     case POWER_SUPPLY_PROP_CAPACITY:
         chip->fake_battery_soc = val->intval;
         power_supply_changed(&chip->batt_psy);
         break;
-
+		
     case POWER_SUPPLY_PROP_BATTERY_CHARGER_ENABLE:
 		chip->is_factory_mode= val->intval;
 		if(chip->is_factory_mode == true)
 		{
+
+		/*huqiao@EXP.BasicDrv.Basic add for clone 15085*/
+			if(is_project(OPPO_15011)  || is_project(OPPO_14045)||is_project(OPPO_15005) || is_project(OPPO_15025)||
+				is_project(OPPO_15399) || is_project(OPPO_15022)||
+				is_project(OPPO_15009) || is_project(OPPO_15037)||is_project(OPPO_15035) || is_project(OPPO_15085))
+			{
 				opchg_config_charging_disable(chip, FACTORY_MODE_DISABLE, 0);
+			}
 		}
 		else
 		{
-			if(is_project(OPPO_15018) || is_project(OPPO_15022))
-			{
-				opchg_set_switch_mode(NORMAL_CHARGER_MODE);
-			}
-			opchg_config_charging_disable(chip, FACTORY_MODE_DISABLE, 1);
-		}
-        break;
+		/*huqiao@EXP.BasicDrv.Basic add for clone 15085*/
 
+			if(is_project(OPPO_15011) ||is_project(OPPO_14045)|| is_project(OPPO_15005) || is_project(OPPO_15025)||
+				is_project(OPPO_15399) || is_project(OPPO_15022)||
+				is_project(OPPO_15009) || is_project(OPPO_15037)||is_project(OPPO_15035) ||
+                is_project(OPPO_15085) )
+			{
+				opchg_config_charging_disable(chip, FACTORY_MODE_DISABLE, 1);
+			}
+		}
+        break; 
+		
     default:
         return -EINVAL;
     }
-
+    
     return 0;
 }
 
@@ -421,22 +447,25 @@ int opchg_battery_get_property(struct power_supply *psy,
 {
     struct opchg_charger *chip = container_of(psy,
                         struct opchg_charger, batt_psy);
-
+                        
     switch (prop) {
 		case POWER_SUPPLY_PROP_AUTHENTICATE:
-			val->intval = 1;
-			break;
+			if(is_project(OPPO_14043) || is_project(OPPO_14037) || is_project(OPPO_15025))
+				val->intval = chip->batt_authen;
+			else
+				val->intval = 1;
+			break; 
 		case POWER_SUPPLY_PROP_PRESENT:
 			val->intval = chip->bat_exist;
 			break;
 		case POWER_SUPPLY_PROP_TECHNOLOGY:
 	        val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
-	        break;
+	        break;	
 
 		case POWER_SUPPLY_PROP_CHARGE_NOW:
 	        val->intval = chip->charger_vol;
 			//val->intval = opchg_get_prop_charger_voltage_now(chip);
-	        break;
+	        break;    
 		case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 	        val->intval = chip->bat_instant_vol;
 	        //val->intval = opchg_get_prop_battery_voltage_now(chip);
@@ -461,8 +490,8 @@ int opchg_battery_get_property(struct power_supply *psy,
 			{
 				val->intval =chip->bat_volt_check_point;
 			}
-	        break;
-
+	        break;	
+        
 	    case POWER_SUPPLY_PROP_CHARGE_TIMEOUT:
 	        val->intval = (int)chip->charging_time_out;
 	        break;
@@ -486,8 +515,9 @@ int opchg_battery_get_property(struct power_supply *psy,
 			val->intval = chip->bat_temp_status;
 			#endif
 	        break;
-
+    
         case POWER_SUPPLY_PROP_ONLINE:
+			#if 1
 			// set usb charging sign
 			if((chip->chg_present) && (qpnp_charger_type_get(chip) == POWER_SUPPLY_TYPE_USB_DCP))
 			{
@@ -495,14 +525,30 @@ int opchg_battery_get_property(struct power_supply *psy,
 			}
 			else
 			{
-			val->intval = chip->chg_present;
+	        	val->intval = chip->chg_present;
 			}
 			#ifdef OPCHARGER_DEBUG_ENABLE
 			pr_debug("oppo_debug usb charging sign = %d\n",val->intval);
 			#endif
+			#else
+			if(is_project(OPPO_14005)||is_project(OPPO_14023)||is_project(OPPO_15011)) {
+	            if(opchg_get_prop_fast_chg_started(chip) == true) {// in fast charging
+	                val->intval = 0;
+	            }
+				else if(vooc_start_step < OPCHG_VOOC_TO_STANDARD){ // out of fast charging
+					val->intval = 0;
+				}
+	            else {										// in normal  charging	
+	                val->intval = chip->chg_present;
+	            }
+	        }
+	        else {
+	        	val->intval = chip->chg_present;
+			}
+			#endif
 	        break;
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-	        if(is_project(OPPO_14005) || is_project(OPPO_15011) || is_project(OPPO_15018) || is_project(OPPO_15022)) {
+    	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+	        if(is_project(OPPO_14005)||is_project(OPPO_14023)||is_project(OPPO_15011)||is_project(OPPO_15399) || is_project(OPPO_15022)) {
 	            if(opchg_get_prop_fast_chg_started(chip) == true) {
 	                val->intval = 1;
 	            }
@@ -515,7 +561,8 @@ int opchg_battery_get_property(struct power_supply *psy,
 	        }
 	        break;
 	    case POWER_SUPPLY_PROP_STATUS:
-			if(is_project(OPPO_14005) || is_project(OPPO_15011) || is_project(OPPO_15018) || is_project(OPPO_15022)) {
+		#if 1
+			if(is_project(OPPO_14005)||is_project(OPPO_14023)||is_project(OPPO_15011)||is_project(OPPO_15399) || is_project(OPPO_15022)) {
 				if(opchg_get_prop_fast_chg_started(chip) == true) {
 					val->intval = POWER_SUPPLY_STATUS_CHARGING;
 				}
@@ -536,9 +583,26 @@ int opchg_battery_get_property(struct power_supply *psy,
 			#ifdef OPCHARGER_DEBUG_ENABLE
 			pr_debug("oppo_debug  bat_status= %d vooc_start_step= %d\r\n",val->intval,vooc_start_step);
 			#endif
+		#else
+	        if(is_project(OPPO_14005)||is_project(OPPO_14023)||is_project(OPPO_15011)) {
+	            if(opchg_get_prop_fast_chg_started(chip) == true) {// in fast charging
+	    			val->intval = POWER_SUPPLY_STATUS_CHARGING;
+	    		}
+				else if(vooc_start_step < OPCHG_VOOC_TO_STANDARD){ // out of fast charging
+					val->intval = POWER_SUPPLY_STATUS_CHARGING;
+				}
+	    		else {										// in normal  charging	
+	                val->intval = chip->bat_status;
+	            }
+	        }
+	        else {
+	            val->intval = chip->bat_status;
+	        }
+			//pr_debug("oppo_charger_debug  bat_status= %d vooc_start_step= %d\r\n",val->intval,vooc_start_step);
+		#endif
 	        break;
 	    case POWER_SUPPLY_PROP_CHARGE_TYPE:
-			if(is_project(OPPO_14005) || is_project(OPPO_15011) || is_project(OPPO_15018) || is_project(OPPO_15022)) {
+			if(is_project(OPPO_14005)||is_project(OPPO_14023)||is_project(OPPO_15011)||is_project(OPPO_15399) || is_project(OPPO_15022)) {
 			    if(opchg_get_prop_fast_chg_started(chip) == true) {	// in fast charging
 			        val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
 			    }
@@ -549,27 +613,27 @@ int opchg_battery_get_property(struct power_supply *psy,
 			else {
 			    val->intval = chip->bat_charging_state;
 			}
-	        break;
-
+	        break; 
+			
 	    case POWER_SUPPLY_PROP_MODEL_NAME:
 	        val->strval = "OPCHARGER";//"SMB358";
 	        break;
 
-
+		
 		case POWER_SUPPLY_PROP_FAST_CHARGE://wangjc add for fast charger
 			#ifdef OPPO_USE_FAST_CHARGER /* OPPO 2013-12-22 wangjc add for fastchg*/
-			if(is_project(OPPO_14005) || is_project(OPPO_15011) || is_project(OPPO_15018) || is_project(OPPO_15022))
+			if(is_project(OPPO_14005)||is_project(OPPO_14023)||is_project(OPPO_15011)||is_project(OPPO_15399) || is_project(OPPO_15022))
 			{
 				chip->fastcharger =opchg_get_prop_fast_chg_started(chip);
 				if(chip->fastcharger == 0) {
 					//if(chip->batt_full == true)
-					if((chip->bat_status == POWER_SUPPLY_STATUS_FULL)|| (chip->batt_hot == true)|| (chip->batt_cold == true)
+					if((chip->bat_status == POWER_SUPPLY_STATUS_FULL)|| (chip->batt_hot == true)|| (chip->batt_cold == true) 
 						|| (chip->batt_voltage_over == true)||(chip->charger_ov_status == true) || (chip->charging_time_out == true))
 					{
 						chip->fastcharger = 0;
 					}
-					else if((opchg_get_prop_fast_switch_to_normal(chip) == true) ||
-						(opchg_get_prop_fast_normal_to_warm(chip) == true) ||
+					else if((opchg_get_prop_fast_switch_to_normal(chip) == true) || 
+						(opchg_get_prop_fast_normal_to_warm(chip) == true) || 
 						(opchg_get_fast_low_temp_full(chip) == true)) {
 						chip->fastcharger = 1;
 					}
@@ -587,9 +651,9 @@ int opchg_battery_get_property(struct power_supply *psy,
 		case POWER_SUPPLY_PROP_FAST_CHARGE_PROJECT://wangjc add for fast charger project sign
 			val->intval = chip->fast_charge_project;
 			break;
-
-		case POWER_SUPPLY_PROP_BATTERY_FCC:			//dengnw add for battery fcc
-			if(is_project(OPPO_14005) || is_project(OPPO_15011) || is_project(OPPO_15018) || is_project(OPPO_15022))
+			
+		case 	POWER_SUPPLY_PROP_BATTERY_FCC:			//dengnw add for battery fcc
+			if(is_project(OPPO_14005)||is_project(OPPO_14023)||is_project(OPPO_14045)||is_project(OPPO_15011)||is_project(OPPO_15399) || is_project(OPPO_15022))
 			{
 				if(bq27541_di == NULL)
 				{
@@ -606,8 +670,8 @@ int opchg_battery_get_property(struct power_supply *psy,
 				val->intval = 100;
 			}
 			break;
-		case POWER_SUPPLY_PROP_BATTERY_SOH:			//dengnw add for battery soh
-			if(is_project(OPPO_14005) || is_project(OPPO_15011) || is_project(OPPO_15018) || is_project(OPPO_15022))
+		case 	POWER_SUPPLY_PROP_BATTERY_SOH:			//dengnw add for battery soh
+			if(is_project(OPPO_14005)||is_project(OPPO_14023)||is_project(OPPO_14045)||is_project(OPPO_15011)||is_project(OPPO_15399) || is_project(OPPO_15022))
 			{
 				if(bq27541_di == NULL)
 				{
@@ -624,8 +688,8 @@ int opchg_battery_get_property(struct power_supply *psy,
 				val->intval = 100;
 			}
 			break;
-		case POWER_SUPPLY_PROP_BATTERY_CC:			//dengnw add for battery cc
-			if(is_project(OPPO_14005) || is_project(OPPO_15011) || is_project(OPPO_15018) || is_project(OPPO_15022))
+		case 	POWER_SUPPLY_PROP_BATTERY_CC:			//dengnw add for battery cc
+			if(is_project(OPPO_14005)||is_project(OPPO_14023)||is_project(OPPO_14045)||is_project(OPPO_15011)||is_project(OPPO_15399) || is_project(OPPO_15022))
 			{
 				if(bq27541_di == NULL)
 				{
@@ -645,18 +709,19 @@ int opchg_battery_get_property(struct power_supply *psy,
 		case 	POWER_SUPPLY_PROP_BATTERY_CHARGER_ENABLE:
 			val->intval = chip->is_factory_mode;
 			break;
-
+		
 		case POWER_SUPPLY_PROP_BATTERY_NOTIFY:
 			val->intval = chip->batterynotify;
-			#ifdef OPCHARGER_DEBUG_ENABLE
-			pr_debug("oppo_debug  batterynotify = 0x%x\r\n",chip->batterynotify);
-			#endif
 			break;
 
 		case POWER_SUPPLY_PROP_POWER_OFF:
-			val->intval = 0;
+			if(is_project(OPPO_15025) && chip->driver_id == OPCHG_BQ24157_ID){
+				val->intval = chip->power_off;
+			} else {
+				val->intval = 0;
+			}
 			break;
-
+			
 	    default:
 	        return -EINVAL;
 	}
@@ -670,15 +735,16 @@ int qpnp_power_get_property_mains(struct power_supply *psy,
 	struct opchg_charger *chip = container_of(psy, struct opchg_charger,
 								dc_psy);
 
-	switch (prop)
+	switch (prop) 
 	{
-
+	
 	case POWER_SUPPLY_PROP_PRESENT:
 	case POWER_SUPPLY_PROP_ONLINE:
 
 		if (chip->charging_disabled)
 			return 0;
-		if( is_project(OPPO_14005) || is_project(OPPO_15011) || is_project(OPPO_15018) || is_project(OPPO_15022))
+#if 1
+		if(is_project(OPPO_14005)||is_project(OPPO_14023)||is_project(OPPO_15011)||is_project(OPPO_15399) || is_project(OPPO_15022))
 		{
 			if((opchg_get_prop_fast_chg_started(chip) == true)
 				|| (opchg_get_prop_fast_switch_to_normal(chip) == true)
@@ -702,20 +768,41 @@ int qpnp_power_get_property_mains(struct power_supply *psy,
 		#ifdef OPCHARGER_DEBUG_ENABLE
 		pr_debug("oppo_debug dc charging and fast charging sign = %d\n",val->intval);
 		#endif
-		break;
-
-	case POWER_SUPPLY_PROP_CURRENT_MAX:
-#ifdef OPPO_USE_FAST_CHARGER
-		if (opchg_get_prop_fast_chg_started(chip)) {
-			// report a hardcoded value of 5A, as that's the theoretical VOOC limit
-			val->intval = 5000000;
-		} else
-#endif
+#else
+		if(is_project(OPPO_14005)||is_project(OPPO_14023)||is_project(OPPO_15011))
 		{
-			val->intval = chip->max_input_current[INPUT_CURRENT_MIN] * 1000;
+			if(opchg_get_prop_fast_chg_started(chip) == true){// in fast charging
+				val->intval = 1;
+				//pr_debug("usb_online= %d,00000 usb_check_inout = %d,vooc_start_step= %d\r\n",val->intval,chip->chg_present,vooc_start_step);
+			}
+			else if(vooc_start_step < OPCHG_VOOC_TO_STANDARD){ // out of fast charging
+				val->intval = 1;
+				//pr_debug("usb_online= %d,1111 usb_check_inout = %d,vooc_start_step= %d\r\n",val->intval,chip->chg_present,vooc_start_step);
+			}
+			else
+			{
+				if(qpnp_charger_type_get(chip) == POWER_SUPPLY_TYPE_USB_DCP)
+					val->intval = 1;
+				else
+					val->intval = 0;
+				//pr_debug("usb_online= %d,2222 usb_check_inout = %d,vooc_start_step= %d\r\n",val->intval,chip->chg_present,vooc_start_step);
+			}
 		}
+		else
+		{
+			/* jingchun.wang@Onlinerd.Driver, 2014/02/11  Modify for when no battery gauge present */
+			if(qpnp_charger_type_get(chip) == POWER_SUPPLY_TYPE_USB_DCP)
+				val->intval = 1;
+			else
+				val->intval = 0;
+		}
+#endif /*CONFIG_BATTERY_BQ27541*/
 		break;
-
+		
+	case POWER_SUPPLY_PROP_CURRENT_MAX:
+		val->intval = chip->fastchg_current_max_ma * 1000;//chip->maxinput_dc_ma * 1000;
+		break;
+	
 	default:
 		return -EINVAL;
 	}
@@ -730,7 +817,7 @@ int qpnp_dc_power_set_property(struct power_supply *psy,
 	//struct opchg_charger *chip = container_of(psy, struct opchg_charger,dc_psy);
 	int rc = 0;
 
-	switch (prop)
+	switch (prop) 
 	{
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 		if (!val->intval)
@@ -745,7 +832,7 @@ int qpnp_dc_power_set_property(struct power_supply *psy,
 		chip->maxinput_dc_ma = (val->intval / 1000);
 		#endif
 		break;
-
+		
 	default:
 		return -EINVAL;
 	}
@@ -766,3 +853,5 @@ int qpnp_dc_property_is_writeable(struct power_supply *psy,
 
 	return 0;
 }
+
+
