@@ -161,7 +161,7 @@ static enum power_supply_property wm831x_backup_props[] = {
  *		Initialisation
  *********************************************************************/
 
-static int wm831x_backup_probe(struct platform_device *pdev)
+static __devinit int wm831x_backup_probe(struct platform_device *pdev)
 {
 	struct wm831x *wm831x = dev_get_drvdata(pdev->dev.parent);
 	struct wm831x_pdata *wm831x_pdata = wm831x->dev->platform_data;
@@ -169,8 +169,7 @@ static int wm831x_backup_probe(struct platform_device *pdev)
 	struct power_supply *backup;
 	int ret;
 
-	devdata = devm_kzalloc(&pdev->dev, sizeof(struct wm831x_backup),
-				GFP_KERNEL);
+	devdata = kzalloc(sizeof(struct wm831x_backup), GFP_KERNEL);
 	if (devdata == NULL)
 		return -ENOMEM;
 
@@ -198,22 +197,30 @@ static int wm831x_backup_probe(struct platform_device *pdev)
 	backup->num_properties = ARRAY_SIZE(wm831x_backup_props);
 	backup->get_property = wm831x_backup_get_prop;
 	ret = power_supply_register(&pdev->dev, backup);
+	if (ret)
+		goto err_kmalloc;
 
+	return ret;
+
+err_kmalloc:
+	kfree(devdata);
 	return ret;
 }
 
-static int wm831x_backup_remove(struct platform_device *pdev)
+static __devexit int wm831x_backup_remove(struct platform_device *pdev)
 {
 	struct wm831x_backup *devdata = platform_get_drvdata(pdev);
 
 	power_supply_unregister(&devdata->backup);
+	kfree(devdata->backup.name);
+	kfree(devdata);
 
 	return 0;
 }
 
 static struct platform_driver wm831x_backup_driver = {
 	.probe = wm831x_backup_probe,
-	.remove = wm831x_backup_remove,
+	.remove = __devexit_p(wm831x_backup_remove),
 	.driver = {
 		.name = "wm831x-backup",
 	},

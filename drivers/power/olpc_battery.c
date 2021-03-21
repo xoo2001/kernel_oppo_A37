@@ -17,7 +17,6 @@
 #include <linux/power_supply.h>
 #include <linux/jiffies.h>
 #include <linux/sched.h>
-#include <linux/olpc-ec.h>
 #include <asm/olpc.h>
 
 
@@ -232,9 +231,11 @@ static int olpc_bat_get_charge_full_design(union power_supply_propval *val)
 
 	case POWER_SUPPLY_TECHNOLOGY_LiFe:
 		switch (mfr) {
-		case 1: /* Gold Peak, fall through */
-		case 2: /* BYD */
+		case 1: /* Gold Peak */
 			val->intval = 2800000;
+			break;
+		case 2: /* BYD */
+			val->intval = 3100000;
 			break;
 		default:
 			return -EIO;
@@ -264,55 +265,6 @@ static int olpc_bat_get_charge_now(union power_supply_propval *val)
 
 	val->intval = soc * (full.intval / 100);
 	return 0;
-}
-
-static int olpc_bat_get_voltage_max_design(union power_supply_propval *val)
-{
-	uint8_t ec_byte;
-	union power_supply_propval tech;
-	int mfr;
-	int ret;
-
-	ret = olpc_bat_get_tech(&tech);
-	if (ret)
-		return ret;
-
-	ec_byte = BAT_ADDR_MFR_TYPE;
-	ret = olpc_ec_cmd(EC_BAT_EEPROM, &ec_byte, 1, &ec_byte, 1);
-	if (ret)
-		return ret;
-
-	mfr = ec_byte >> 4;
-
-	switch (tech.intval) {
-	case POWER_SUPPLY_TECHNOLOGY_NiMH:
-		switch (mfr) {
-		case 1: /* Gold Peak */
-			val->intval = 6000000;
-			break;
-		default:
-			return -EIO;
-		}
-		break;
-
-	case POWER_SUPPLY_TECHNOLOGY_LiFe:
-		switch (mfr) {
-		case 1: /* Gold Peak */
-			val->intval = 6400000;
-			break;
-		case 2: /* BYD */
-			val->intval = 6500000;
-			break;
-		default:
-			return -EIO;
-		}
-		break;
-
-	default:
-		return -EIO;
-	}
-
-	return ret;
 }
 
 /*********************************************************************
@@ -449,11 +401,6 @@ static int olpc_bat_get_property(struct power_supply *psy,
 		sprintf(bat_serial, "%016llx", (long long)be64_to_cpu(ser_buf));
 		val->strval = bat_serial;
 		break;
-	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
-		ret = olpc_bat_get_voltage_max_design(val);
-		if (ret)
-			return ret;
-		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -481,7 +428,6 @@ static enum power_supply_property olpc_xo1_bat_props[] = {
 	POWER_SUPPLY_PROP_MANUFACTURER,
 	POWER_SUPPLY_PROP_SERIAL_NUMBER,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
-	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
 };
 
 /* XO-1.5 does not have ambient temperature property */
@@ -503,7 +449,6 @@ static enum power_supply_property olpc_xo15_bat_props[] = {
 	POWER_SUPPLY_PROP_MANUFACTURER,
 	POWER_SUPPLY_PROP_SERIAL_NUMBER,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
-	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
 };
 
 /* EEPROM reading goes completely around the power_supply API, sadly */
@@ -598,7 +543,7 @@ static int olpc_battery_suspend(struct platform_device *pdev,
 	return 0;
 }
 
-static int olpc_battery_probe(struct platform_device *pdev)
+static int __devinit olpc_battery_probe(struct platform_device *pdev)
 {
 	int ret;
 	uint8_t status;
@@ -659,7 +604,7 @@ battery_failed:
 	return ret;
 }
 
-static int olpc_battery_remove(struct platform_device *pdev)
+static int __devexit olpc_battery_remove(struct platform_device *pdev)
 {
 	device_remove_file(olpc_bat.dev, &olpc_bat_error);
 	device_remove_bin_file(olpc_bat.dev, &olpc_bat_eeprom);
@@ -668,7 +613,7 @@ static int olpc_battery_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct of_device_id olpc_battery_ids[] = {
+static const struct of_device_id olpc_battery_ids[] __devinitconst = {
 	{ .compatible = "olpc,xo1-battery" },
 	{}
 };
@@ -681,7 +626,7 @@ static struct platform_driver olpc_battery_driver = {
 		.of_match_table = olpc_battery_ids,
 	},
 	.probe = olpc_battery_probe,
-	.remove = olpc_battery_remove,
+	.remove = __devexit_p(olpc_battery_remove),
 	.suspend = olpc_battery_suspend,
 };
 

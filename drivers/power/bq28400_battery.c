@@ -790,12 +790,12 @@ static void bq28400_external_power_changed(struct power_supply *psy)
 	power_supply_changed(&bq28400_dev->batt_psy);
 }
 
-static int bq28400_register_psy(struct bq28400_device *bq28400_dev)
+static int __devinit bq28400_register_psy(struct bq28400_device *bq28400_dev)
 {
 	int ret;
 
-	bq28400_dev->batt_psy.name = "bq28400_battery";
-	bq28400_dev->batt_psy.type = POWER_SUPPLY_TYPE_BMS;
+	bq28400_dev->batt_psy.name = "battery";
+	bq28400_dev->batt_psy.type = POWER_SUPPLY_TYPE_BATTERY;
 	bq28400_dev->batt_psy.num_supplicants = 0;
 	bq28400_dev->batt_psy.properties = pm_power_props;
 	bq28400_dev->batt_psy.num_properties = ARRAY_SIZE(pm_power_props);
@@ -838,7 +838,7 @@ static void bq28400_periodic_user_space_update_worker(struct work_struct *work)
 						     (delay_msec)));
 }
 
-static int bq28400_probe(struct i2c_client *client,
+static int __devinit bq28400_probe(struct i2c_client *client,
 				   const struct i2c_device_id *id)
 {
 	int ret = 0;
@@ -867,7 +867,7 @@ static int bq28400_probe(struct i2c_client *client,
 	}
 
 	/* Note: Lithium-ion battery normal temperature range 0..40 C */
-	ret = of_property_read_u32(dev_node, "ti,temp-cold-degc",
+	ret = of_property_read_u32(dev_node, "ti,temp-cold",
 				   &(bq28400_dev->temp_cold));
 	if (ret) {
 		pr_err("Unable to read cold temperature. ret=%d.\n", ret);
@@ -875,7 +875,7 @@ static int bq28400_probe(struct i2c_client *client,
 	}
 	pr_debug("cold temperature limit = %d C.\n", bq28400_dev->temp_cold);
 
-	ret = of_property_read_u32(dev_node, "ti,temp-hot-degc",
+	ret = of_property_read_u32(dev_node, "ti,temp-hot",
 				   &(bq28400_dev->temp_hot));
 	if (ret) {
 		pr_err("Unable to read hot temperature. ret=%d.\n", ret);
@@ -922,7 +922,7 @@ err_dev_node:
 	return ret;
 }
 
-static int bq28400_remove(struct i2c_client *client)
+static int __devexit bq28400_remove(struct i2c_client *client)
 {
 	struct bq28400_device *bq28400_dev = i2c_get_clientdata(client);
 
@@ -955,7 +955,7 @@ static struct i2c_driver bq28400_driver = {
 		.of_match_table = of_match_ptr(bq28400_match),
 	},
 	.probe		= bq28400_probe,
-	.remove		= bq28400_remove,
+	.remove		= __devexit_p(bq28400_remove),
 	.id_table	= bq28400_id,
 };
 

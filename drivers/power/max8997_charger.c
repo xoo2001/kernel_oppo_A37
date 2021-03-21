@@ -86,7 +86,7 @@ static int max8997_battery_get_property(struct power_supply *psy,
 	return 0;
 }
 
-static int max8997_battery_probe(struct platform_device *pdev)
+static __devinit int max8997_battery_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct charger_data *charger;
@@ -138,8 +138,7 @@ static int max8997_battery_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	charger = devm_kzalloc(&pdev->dev, sizeof(struct charger_data),
-				GFP_KERNEL);
+	charger = kzalloc(sizeof(struct charger_data), GFP_KERNEL);
 	if (charger == NULL) {
 		dev_err(&pdev->dev, "Cannot allocate memory.\n");
 		return -ENOMEM;
@@ -159,17 +158,21 @@ static int max8997_battery_probe(struct platform_device *pdev)
 	ret = power_supply_register(&pdev->dev, &charger->battery);
 	if (ret) {
 		dev_err(&pdev->dev, "failed: power supply register\n");
-		return ret;
+		goto err;
 	}
 
 	return 0;
+err:
+	kfree(charger);
+	return ret;
 }
 
-static int max8997_battery_remove(struct platform_device *pdev)
+static int __devexit max8997_battery_remove(struct platform_device *pdev)
 {
 	struct charger_data *charger = platform_get_drvdata(pdev);
 
 	power_supply_unregister(&charger->battery);
+	kfree(charger);
 	return 0;
 }
 
@@ -184,7 +187,7 @@ static struct platform_driver max8997_battery_driver = {
 		.owner = THIS_MODULE,
 	},
 	.probe = max8997_battery_probe,
-	.remove = max8997_battery_remove,
+	.remove = __devexit_p(max8997_battery_remove),
 	.id_table = max8997_battery_id,
 };
 

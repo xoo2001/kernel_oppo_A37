@@ -24,7 +24,11 @@
 
 static inline unsigned int get_irq_flags(struct resource *res)
 {
-	return IRQF_SHARED | (res->flags & IRQF_TRIGGER_MASK);
+	unsigned int flags = IRQF_SAMPLE_RANDOM | IRQF_SHARED;
+
+	flags |= res->flags & IRQF_TRIGGER_MASK;
+
+	return flags;
 }
 
 static struct device *dev;
@@ -35,7 +39,7 @@ static struct timer_list supply_timer;
 static struct timer_list polling_timer;
 static int polling;
 
-#if IS_ENABLED(CONFIG_USB_PHY)
+#ifdef CONFIG_USB_OTG_UTILS
 static struct usb_phy *transceiver;
 static struct notifier_block otg_nb;
 #endif
@@ -130,13 +134,13 @@ static void update_charger(void)
 			regulator_set_current_limit(ac_draw, max_uA, max_uA);
 			if (!regulator_enabled) {
 				dev_dbg(dev, "charger on (AC)\n");
-				WARN_ON(regulator_enable(ac_draw));
+				regulator_enable(ac_draw);
 				regulator_enabled = 1;
 			}
 		} else {
 			if (regulator_enabled) {
 				dev_dbg(dev, "charger off\n");
-				WARN_ON(regulator_disable(ac_draw));
+				regulator_disable(ac_draw);
 				regulator_enabled = 0;
 			}
 		}
@@ -218,7 +222,7 @@ static void polling_timer_func(unsigned long unused)
 		  jiffies + msecs_to_jiffies(pdata->polling_interval));
 }
 
-#if IS_ENABLED(CONFIG_USB_PHY)
+#ifdef CONFIG_USB_OTG_UTILS
 static int otg_is_usb_online(void)
 {
 	return (transceiver->last_event == USB_EVENT_VBUS ||
@@ -281,12 +285,6 @@ static int pda_power_probe(struct platform_device *pdev)
 			goto init_failed;
 	}
 
-	ac_draw = regulator_get(dev, "ac_draw");
-	if (IS_ERR(ac_draw)) {
-		dev_dbg(dev, "couldn't get ac_draw regulator\n");
-		ac_draw = NULL;
-	}
-
 	update_status();
 	update_charger();
 
@@ -315,13 +313,20 @@ static int pda_power_probe(struct platform_device *pdev)
 		pda_psy_usb.num_supplicants = pdata->num_supplicants;
 	}
 
-#if IS_ENABLED(CONFIG_USB_PHY)
-	transceiver = usb_get_phy(USB_PHY_TYPE_USB2);
-	if (!IS_ERR_OR_NULL(transceiver)) {
-		if (!pdata->is_usb_online)
-			pdata->is_usb_online = otg_is_usb_online;
-		if (!pdata->is_ac_online)
-			pdata->is_ac_online = otg_is_ac_online;
+	ac_draw = regulator_get(dev, "ac_draw");
+	if (IS_ERR(ac_draw)) {
+		dev_dbg(dev, "couldn't get ac_draw regulator\n");
+		ac_draw = NULL;
+		ret = PTR_ERR(ac_draw);
+	}
+
+#ifdef CONFIG_USB_OTG_UTILS
+	transceiver = usb_get_transceiver();
+	if (transceiver && !pdata->is_usb_online) {
+		pdata->is_usb_online = otg_is_usb_online;
+	}
+	if (transceiver && !pdata->is_ac_online) {
+		pdata->is_ac_online = otg_is_ac_online;
 	}
 #endif
 
@@ -367,8 +372,8 @@ static int pda_power_probe(struct platform_device *pdev)
 		}
 	}
 
-#if IS_ENABLED(CONFIG_USB_PHY)
-	if (!IS_ERR_OR_NULL(transceiver) && pdata->use_otg_notifier) {
+#ifdef CONFIG_USB_OTG_UTILS
+	if (transceiver && pdata->use_otg_notifier) {
 		otg_nb.notifier_call = otg_handle_notification;
 		ret = usb_register_notifier(transceiver, &otg_nb);
 		if (ret) {
@@ -391,7 +396,7 @@ static int pda_power_probe(struct platform_device *pdev)
 
 	return 0;
 
-#if IS_ENABLED(CONFIG_USB_PHY)
+#ifdef CONFIG_USB_OTG_UTILS
 otg_reg_notifier_failed:
 	if (pdata->is_usb_online && usb_irq)
 		free_irq(usb_irq->start, &pda_psy_usb);
@@ -402,9 +407,9 @@ usb_irq_failed:
 usb_supply_failed:
 	if (pdata->is_ac_online && ac_irq)
 		free_irq(ac_irq->start, &pda_psy_ac);
-#if IS_ENABLED(CONFIG_USB_PHY)
-	if (!IS_ERR_OR_NULL(transceiver))
-		usb_put_phy(transceiver);
+#ifdef CONFIG_USB_OTG_UTILS
+	if (transceiver)
+		usb_put_transceiver(transceiver);
 #endif
 ac_irq_failed:
 	if (pdata->is_ac_online)
@@ -437,9 +442,9 @@ static int pda_power_remove(struct platform_device *pdev)
 		power_supply_unregister(&pda_psy_usb);
 	if (pdata->is_ac_online)
 		power_supply_unregister(&pda_psy_ac);
-#if IS_ENABLED(CONFIG_USB_PHY)
-	if (!IS_ERR_OR_NULL(transceiver))
-		usb_put_phy(transceiver);
+#ifdef CONFIG_USB_OTG_UTILS
+	if (transceiver)
+		usb_put_transceiver(transceiver);
 #endif
 	if (ac_draw) {
 		regulator_put(ac_draw);
