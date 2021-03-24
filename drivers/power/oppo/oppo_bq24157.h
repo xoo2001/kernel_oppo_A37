@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright (c)  2014- 2014  Guangdong OPPO Mobile Telecommunications Corp., Ltd
-* VENDOR_EDIT
+* CONFIG_MACH_OPPO
 * Description: Source file for CBufferList.
 *           To allocate and free memory block safely.
 * Version   : 0.0
@@ -64,7 +64,7 @@
 #define BQ24157_LOWCHG_CURRENT_DISABLE		0x00
 
 #define BQ24157_FAST_CURRENT_MAX_MA			1250
-#define BQ24157_FAST_CURRENT_OFFSET_MA		550	
+#define BQ24157_FAST_CURRENT_OFFSET_MA		550
 #define BQ24157_FAST_CURRENT_STEP_MA		100
 #define BQ24157_FAST_CURRENT_LOWCHG_MA		325
 
@@ -132,5 +132,6 @@ OPPO_BQ24157_EXT int bq24157_check_charging_pre_full(struct opchg_charger *chip)
 OPPO_BQ24157_EXT void bq24157_usbin_valid_work(struct work_struct *work);
 OPPO_BQ24157_EXT void  bq24157_usbin_valid_irq_handler(struct opchg_charger *chip);
 OPPO_BQ24157_EXT void  bq24157_dump_regs(struct opchg_charger *chip);
+OPPO_BQ24157_EXT int bq24157_get_initial_state(struct opchg_charger *chip);
 
 #endif /*_OPPO_BQ24196_H_*/

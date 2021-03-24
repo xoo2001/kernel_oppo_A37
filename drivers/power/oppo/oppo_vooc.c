@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright (c)  2014- 2014  Guangdong OPPO Mobile Telecommunications Corp., Ltd
-* VENDOR_EDIT
+* CONFIG_MACH_OPPO
 * Description: Source file for CBufferList.
 *           To allocate and free memory block safely.
 * Version   : 0.1
@@ -16,7 +16,7 @@
 *******************************************************************************/
 
 #define OPPO_VOOC_PAR
-#include <oppo_inc.h>
+#include "oppo_inc.h"
 
 
 
@@ -29,7 +29,7 @@
 #if defined CONFIG_OPPO_DEVICE_FIND7 || defined CONFIG_OPPO_DEVICE_FIND7WX	//FIND7/FIND7WX:pic1503
 #define ERASE_COUNT   		96	//0x200-0x7FF usb_uar_control
 #define READ_COUNT			95	//192
-#else	
+#else
 #define ERASE_COUNT   		224	//0x200-0xFFF
 #define READ_COUNT			223	//448
 #endif
@@ -41,8 +41,14 @@ int pic_fw_ver_count_15011 = sizeof(Pic16F_firmware_data_15011);
 int pic_fw_ver_count_15018 = sizeof(Pic16F_firmware_data_15018);
 int pic_fw_ver_count_15022 = sizeof(Pic16F_firmware_data_15022);
 int pic_fw_ver_count = sizeof(Pic16F_firmware_data);
-int pic_need_to_up_fw = 0;
-int pic_have_updated = 0;
+//int pic_need_to_up_fw = 0;
+//int pic_have_updated = 0;
+extern int vooc_have_updated;
+extern int vooc_fw_ver_count;
+extern unsigned char *vooc_firmware_data;
+extern struct opchg_fast_charger *opchg_fast_charger_chip;
+extern int vooc_get_mcu_hw_type(void);
+extern int (*vooc_fw_update)(struct opchg_fast_charger *,bool);
 
 
 static bool pic16f_fw_check(struct opchg_fast_charger *chip)
@@ -59,12 +65,12 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 		goto i2c_err;
 	}
 	msleep(10);
-	
+
 	for(i = 0;i < READ_COUNT;i++){	//1508:448,1503:192
 		i2c_smbus_read_i2c_block_data(chip->client,0x03,16,&data_buf[0]);
 		msleep(2);
 		i2c_smbus_read_i2c_block_data(chip->client,0x03,16,&data_buf[16]);
-		
+
 		addr = 0x200 + i * 16;
 /*
 		printk("%s addr = 0x%x,%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x \
@@ -74,7 +80,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 			data_buf[15],data_buf[16],data_buf[17],data_buf[18],data_buf[19],data_buf[20],data_buf[21],data_buf[22],
 			data_buf[23],data_buf[24],data_buf[25],data_buf[26],data_buf[27],data_buf[28],data_buf[29],data_buf[30],
 			data_buf[31]);
-*/		
+*/
 		if(is_project(OPPO_14005))
 		{
 			if(addr == ((Pic16F_firmware_data_14005[fw_line * 34 + 1] << 8) | Pic16F_firmware_data_14005[fw_line * 34]))
@@ -87,7 +93,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 							data_buf[8],data_buf[9],data_buf[10],data_buf[11],data_buf[12],data_buf[13],data_buf[14],
 							data_buf[15],data_buf[16],data_buf[17],data_buf[18],data_buf[19],data_buf[20],data_buf[21],data_buf[22],
 							data_buf[23],data_buf[24],data_buf[25],data_buf[26],data_buf[27],data_buf[28],data_buf[29],data_buf[30],
-							data_buf[31]);	
+							data_buf[31]);
 					return FW_CHECK_FAIL;
 				}
 				fw_line++;
@@ -103,7 +109,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 
 							return FW_CHECK_FAIL;
 						}
-					}	
+					}
 					fw_line++;
 				}
 				else {
@@ -114,7 +120,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 				}
 			}
 		}
-		else if(is_project(OPPO_15011)) /*#hanqing.wang@EXP.BasicDrv.Audio add for clone 15089 and add the macor MSM_15062 and OPPO_15011 = OPPO_15018*/
+		else if(is_project(OPPO_15011))
 		{
 			if(addr == ((Pic16F_firmware_data_15011[fw_line * 34 + 1] << 8) | Pic16F_firmware_data_15011[fw_line * 34]))
 			{
@@ -126,7 +132,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 							data_buf[8],data_buf[9],data_buf[10],data_buf[11],data_buf[12],data_buf[13],data_buf[14],
 							data_buf[15],data_buf[16],data_buf[17],data_buf[18],data_buf[19],data_buf[20],data_buf[21],data_buf[22],
 							data_buf[23],data_buf[24],data_buf[25],data_buf[26],data_buf[27],data_buf[28],data_buf[29],data_buf[30],
-							data_buf[31]);	
+							data_buf[31]);
 					return FW_CHECK_FAIL;
 				}
 				fw_line++;
@@ -142,7 +148,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 
 							return FW_CHECK_FAIL;
 						}
-					}	
+					}
 					fw_line++;
 				}
 				else {
@@ -165,7 +171,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 							data_buf[8],data_buf[9],data_buf[10],data_buf[11],data_buf[12],data_buf[13],data_buf[14],
 							data_buf[15],data_buf[16],data_buf[17],data_buf[18],data_buf[19],data_buf[20],data_buf[21],data_buf[22],
 							data_buf[23],data_buf[24],data_buf[25],data_buf[26],data_buf[27],data_buf[28],data_buf[29],data_buf[30],
-							data_buf[31]);	
+							data_buf[31]);
 					return FW_CHECK_FAIL;
 				}
 				fw_line++;
@@ -181,7 +187,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 
 							return FW_CHECK_FAIL;
 						}
-					}	
+					}
 					fw_line++;
 				}
 				else {
@@ -204,7 +210,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 							data_buf[8],data_buf[9],data_buf[10],data_buf[11],data_buf[12],data_buf[13],data_buf[14],
 							data_buf[15],data_buf[16],data_buf[17],data_buf[18],data_buf[19],data_buf[20],data_buf[21],data_buf[22],
 							data_buf[23],data_buf[24],data_buf[25],data_buf[26],data_buf[27],data_buf[28],data_buf[29],data_buf[30],
-							data_buf[31]);	
+							data_buf[31]);
 					return FW_CHECK_FAIL;
 				}
 				fw_line++;
@@ -220,7 +226,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 
 							return FW_CHECK_FAIL;
 						}
-					}	
+					}
 					fw_line++;
 				}
 				else {
@@ -243,7 +249,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 							data_buf[8],data_buf[9],data_buf[10],data_buf[11],data_buf[12],data_buf[13],data_buf[14],
 							data_buf[15],data_buf[16],data_buf[17],data_buf[18],data_buf[19],data_buf[20],data_buf[21],data_buf[22],
 							data_buf[23],data_buf[24],data_buf[25],data_buf[26],data_buf[27],data_buf[28],data_buf[29],data_buf[30],
-							data_buf[31]);	
+							data_buf[31]);
 					return FW_CHECK_FAIL;
 				}
 				fw_line++;
@@ -258,7 +264,7 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 								j,data_buf[j],(fw_line * 34 + 2 + j),Pic16F_firmware_data[fw_line * 34 + 2 + j]);
 							return FW_CHECK_FAIL;
 						}
-					}	
+					}
 					fw_line++;
 				}
 				else
@@ -269,11 +275,11 @@ static bool pic16f_fw_check(struct opchg_fast_charger *chip)
 					#endif
 				}
 			}
-		}	
+		}
 	}
 	pr_info("%s success\n",__func__);
 	return FW_CHECK_SUCCESS;
-	
+
 i2c_err:
 	pr_err("%s is not success\n",__func__);
 	return FW_CHECK_FAIL;
@@ -284,7 +290,7 @@ static void pic16f_fw_data_recover(struct opchg_fast_charger *chip,unsigned char
 	unsigned int count = 0;
 	unsigned char temp;
 	int i;
-	
+
 	count = offset;
 	while(count < (offset + length))
 	{
@@ -343,7 +349,7 @@ static int pic16f_fw_write(struct opchg_fast_charger *chip,unsigned char *data_b
 		i2c_smbus_write_i2c_block_data(chip->client,0x05,1,&zero_buf[0]);
 		i2c_smbus_read_i2c_block_data(chip->client,0x05,1,&temp_buf[0]);
 		//printk("lfc read again 0x05,temp_buf[0]:0x%x\n",temp_buf[0]);
-				
+
 		count = count + BYTE_OFFSET + 2 * BYTES_TO_WRITE;
 
 		msleep(2);
@@ -354,7 +360,7 @@ static int pic16f_fw_write(struct opchg_fast_charger *chip,unsigned char *data_b
 	}
 	return 0;
 }
-	
+
 int pic16f_fw_update(struct opchg_fast_charger *chip,bool enable)
 {
 	unsigned char zero_buf[1] = {0};
@@ -363,8 +369,11 @@ int pic16f_fw_update(struct opchg_fast_charger *chip,bool enable)
 	int i,rc=0;
 	unsigned int addr = 0x200;
 	int download_again = 0;
-	
+
 	pr_err("%s is start,erase data ing.......\n",__func__);
+
+	if (enable)
+		opchg_chip->updating_fw_flag = true;
 
 	if(enable){
 		#if 0
@@ -375,13 +384,15 @@ int pic16f_fw_update(struct opchg_fast_charger *chip,bool enable)
 		//rc = opchg_set_switch_mode(VOOC_CHARGER_MODE);
 		if(rc < 0){
 			pr_err("%s pull up switch fail\n",__func__);
+			if (enable)
+				opchg_chip->updating_fw_flag = false;
 			return rc;
 		}
 		msleep(300);
 	}
 
 update_fw:
-	//erase address 0x200-0x7FF 
+	//erase address 0x200-0x7FF
 	for(i = 0;i < ERASE_COUNT;i++){
 		//first:set address
 		rc = i2c_smbus_write_i2c_block_data(chip->client,0x01,2,&addr_buf[0]);
@@ -389,7 +400,7 @@ update_fw:
 			pr_err("%s pic16F_update_fw,i2c_write 0x01 error, i=%d\n",__func__,i);
 			goto update_fw_err;
 		}
-		
+
 		//erase data:0x10 words once
 		i2c_smbus_write_i2c_block_data(chip->client,0x04,1,&zero_buf[0]);
 		msleep(1);
@@ -408,7 +419,7 @@ update_fw:
 	{
 		rc = pic16f_fw_write(chip,Pic16F_firmware_data_14005,0,sizeof(Pic16F_firmware_data_14005) - 34);
 	}
-	else if(is_project(OPPO_15011)) /*#hanqing.wang@EXP.BasicDrv.Audio add for clone 15089 and add the macor MSM_15062 and OPPO_15011 = OPPO_15018*/
+	else if(is_project(OPPO_15011))
 	{
 		rc = pic16f_fw_write(chip,Pic16F_firmware_data_15011,0,sizeof(Pic16F_firmware_data_15011) - 34);
 	}
@@ -428,7 +439,7 @@ update_fw:
 		pr_err("%s fw write error\n",__func__);
 		goto update_fw_err;
 	}
-	
+
 	//fw check begin:read data from pic1503/1508,and compare it with Pic16F_firmware_data[]
 	rc = pic16f_fw_check(chip);
 	if(is_project(OPPO_14005))
@@ -451,7 +462,7 @@ update_fw:
 	{
 		pic16f_fw_data_recover(chip,Pic16F_firmware_data,0,sizeof(Pic16F_firmware_data) - 34);
 	}
-	
+
 	if(rc == FW_CHECK_FAIL){
 		download_again++;
 		if(download_again > 3){
@@ -461,7 +472,7 @@ update_fw:
 #ifdef OPPO_USE_FAST_CHARGER
 		opchg_set_reset_active(bq27541_di);
 #endif
-		msleep(300);
+		msleep(1000);
 		pr_err("%s fw check fail,download fw again\n",__func__);
 		goto update_fw;
 	}
@@ -513,18 +524,17 @@ update_fw:
 		msleep(5);
 		pic16f_fw_data_recover(chip,Pic16F_firmware_data,sizeof(Pic16F_firmware_data) - 34,34);
 	}
-	
+
 	//write 0x7F0~0x7FF end
-	
+
 	msleep(2);
 	//jump to app code begin
 	i2c_smbus_write_i2c_block_data(chip->client,0x06,1,&zero_buf[0]);
 	i2c_smbus_read_i2c_block_data(chip->client,0x06,1,&temp_buf[0]);
 	//jump to app code end
-	pic_have_updated = 1;
-
+	vooc_have_updated = 1;
 	//pull down GPIO96 to power off MCU1503/1508
-	if(enable) {	
+	if(enable) {
 	#if 0
 		rc = gpio_tlmm_config(GPIO_CFG(96, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),GPIO_CFG_ENABLE);
 		gpio_set_value(96,0);
@@ -534,8 +544,10 @@ update_fw:
 		if(rc < 0){
 			//pr_err("%s pull down switch fail\n",__func__);
 		}
-	}	
+	}
 	pr_err("%s pic16F update_fw success\n",__func__);
+	if (enable)
+		opchg_chip->updating_fw_flag = false;
 	return 0;
 
 update_fw_err:
@@ -551,6 +563,8 @@ update_fw_err:
 		}
 	}
 	pr_err("%s pic16F update_fw is not success\n",__func__);
+	if (enable)
+		opchg_chip->updating_fw_flag = false;
 	return 1;
 }
 
@@ -560,24 +574,29 @@ void pic16f_fw_update_thread(struct work_struct *work)
 	struct delayed_work *dwork = to_delayed_work(work);
 	struct opchg_fast_charger *chip = container_of(dwork,
 								struct opchg_fast_charger, update_opfastchg_thread_work);
+#ifdef OPPO_USE_FAST_CHARGER
+	opchg_set_reset_active(bq27541_di);
+#endif
+	printk(KERN_ERR "%s: update fw after 1s...\n", __func__);
+	msleep(1000);
 	pic16f_fw_update(chip,1);
 
 	#if 0
-    	/*update time 5s*/
-    	schedule_delayed_work(&chip->update_opfastchg_thread_work,
+	/*update time 5s*/
+	schedule_delayed_work(&chip->update_opfastchg_thread_work,
                             round_jiffies_relative(msecs_to_jiffies
                             (OPCHG_THREAD_INTERVAL)));
 	#endif
-	
+
 }
 
 
-void opchg_fast_charging_works_init(struct opchg_fast_charger *chip)
+void opchg_pic16F_fast_charging_works_init(struct opchg_fast_charger *chip)
 {
-    INIT_DELAYED_WORK(&chip->update_opfastchg_thread_work, pic16f_fw_update_thread);        
+    INIT_DELAYED_WORK(&chip->update_opfastchg_thread_work, pic16f_fw_update_thread);
     schedule_delayed_work(&chip->update_opfastchg_thread_work,
                             round_jiffies_relative(msecs_to_jiffies(OPCHG_THREAD_INTERVAL_INIT)));
-    
+
     //INIT_DELAYED_WORK(&chip->opfastchg_delayed_wakeup_work, opchg_fast_charging_delayed_wakeup_thread);
     //chip->g_fast_charging_wakeup = 0;
 }
@@ -585,8 +604,11 @@ static int pic16F_probe(struct i2c_client *client, const struct i2c_device_id *i
 {
 	int retval;
     struct opchg_fast_charger *chip;
-	 
+
 	/**/
+	if (vooc_get_mcu_hw_type() != OPCHG_VOOC_PIC16F_ID)
+		return 0;
+
 	chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);
     if (!chip) {
         dev_err(&client->dev, "Couldn't allocate memory\n");
@@ -610,7 +632,7 @@ static int pic16F_probe(struct i2c_client *client, const struct i2c_device_id *i
             goto err_set_vtg_i2c;
         }
     }
-    
+
     retval = regulator_enable(chip->vcc_i2c);
     if (retval) {
         dev_err(&client->dev,"Regulator vcc_i2c enable failed " "rc=%d\n", retval);
@@ -624,28 +646,58 @@ static int pic16F_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	/**/
     chip->opchg_fast_driver_id = id->driver_data;
-	opchg_fast_charger_chip = chip;
+	if (is_project(OPPO_15018)) {
+		vooc_fw_ver_count = pic_fw_ver_count_15018;
+		vooc_firmware_data = Pic16F_firmware_data_15018;
+	} else if (is_project(OPPO_15022)) {
+		vooc_fw_ver_count = pic_fw_ver_count_15022;
+		vooc_firmware_data = Pic16F_firmware_data_15022;
+	} else if (is_project(OPPO_14005)) {
+		vooc_fw_ver_count = pic_fw_ver_count_14005;
+		vooc_firmware_data = Pic16F_firmware_data_14005;
+	} else if (is_project(OPPO_15011)) {
+		vooc_fw_ver_count = pic_fw_ver_count_15011;
+		vooc_firmware_data = Pic16F_firmware_data_15011;
+	} else {
+		vooc_fw_ver_count = pic_fw_ver_count;
+		vooc_firmware_data = Pic16F_firmware_data;
+	}
+	opchg_fast_charger_chip_pic16f = chip;
+	opchg_fast_charger_chip = opchg_fast_charger_chip_pic16f;
+	vooc_fw_update = pic16f_fw_update;
     dev_dbg(chip->dev, "opchg_fast_driver_id=%d\n",chip->opchg_fast_driver_id);
 
+	if( chip->opchg_fast_driver_id == OPCHG_VOOC_PIC16F_ID)
+	{
+		register_device_proc("fastcharger_mcu", DEVICE_FASTCHARGER_MCU_VERSION, DEVICE_FASTCHARGER_MCU_TYPE_PIC16F);
+	}
+	else if( chip->opchg_fast_driver_id == OPCHG_VOOC_STM8S_ID)
+	{
+		register_device_proc("fastcharger_mcu", DEVICE_FASTCHARGER_MCU_VERSION, DEVICE_FASTCHARGER_MCU_TYPE_STM8S);
+	}
+	else
+	{
+		register_device_proc("fastcharger_mcu", DEVICE_FASTCHARGER_MCU_VERSION, DEVICE_FASTCHARGER_MCU_TYPE_UNKOWN);
+	}
 
 	/**/
 	//rc=opchg_pic16f_parse_dt(chip);
 
 	/**/
-	opchg_fast_charging_works_init(chip);
-	
+	opchg_pic16F_fast_charging_works_init(chip);
+
 	return 0;
-	
+
 err_set_vtg_i2c:
 		if (regulator_count_voltages(chip->vcc_i2c) > 0) {
 			regulator_set_voltage(chip->vcc_i2c, 0, OPCHARGER_I2C_VTG_MAX_UV);
 		}
-	
+
 err_check_functionality_failed:
 	pr_err("%s is fail\n",__func__);
 	return 0;
 }
-    
+
 
 static int pic16F_remove(struct i2c_client *client)
 {
@@ -658,7 +710,7 @@ static const struct of_device_id pic16f_match[] = {
 };
 
 static const struct i2c_device_id pic16f_id[] = {
-	{ "pic16f_fastcg", 2 },
+	{ "pic16f_fastcg", OPCHG_VOOC_PIC16F_ID },
 	{},
 };
 MODULE_DEVICE_TABLE(i2c, pic16f_id);
@@ -679,4 +731,3 @@ module_i2c_driver(pic16f_fastcg_driver);
 MODULE_DESCRIPTION("OPCHARGER Charger");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("i2c:opcharger-charger");
-
