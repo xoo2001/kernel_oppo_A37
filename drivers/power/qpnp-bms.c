@@ -27,6 +27,7 @@
 #include <linux/qpnp/qpnp-adc.h>
 #include <linux/qpnp/power-on.h>
 #include <linux/of_batterydata.h>
+#include <linux/wakelock.h>
 
 /* BMS Register Offsets */
 #define REVISION1			0x0
@@ -128,11 +129,9 @@ struct fcc_sample {
 };
 
 struct bms_irq {
-	unsigned int	irq;
+	int		irq;
 	unsigned long	disabled;
-	unsigned long	wake_enabled;
 	bool		ready;
-	bool		is_wake;
 };
 
 struct bms_wakeup_source {
@@ -400,9 +399,6 @@ static void enable_bms_irq(struct bms_irq *irq)
 	if (irq->ready && __test_and_clear_bit(0, &irq->disabled)) {
 		enable_irq(irq->irq);
 		pr_debug("enabled irq %d\n", irq->irq);
-		if ((irq->is_wake) &&
-				!__test_and_set_bit(0, &irq->wake_enabled))
-			enable_irq_wake(irq->irq);
 	}
 }
 
@@ -411,9 +407,6 @@ static void disable_bms_irq(struct bms_irq *irq)
 	if (irq->ready && !__test_and_set_bit(0, &irq->disabled)) {
 		disable_irq(irq->irq);
 		pr_debug("disabled irq %d\n", irq->irq);
-		if ((irq->is_wake) &&
-				__test_and_clear_bit(0, &irq->wake_enabled))
-			disable_irq_wake(irq->irq);
 	}
 }
 
@@ -422,9 +415,6 @@ static void disable_bms_irq_nosync(struct bms_irq *irq)
 	if (irq->ready && !__test_and_set_bit(0, &irq->disabled)) {
 		disable_irq_nosync(irq->irq);
 		pr_debug("disabled irq %d\n", irq->irq);
-		if ((irq->is_wake) &&
-				__test_and_clear_bit(0, &irq->wake_enabled))
-			disable_irq_wake(irq->irq);
 	}
 }
 
@@ -1817,7 +1807,6 @@ static int report_cc_based_soc(struct qpnp_bms_chip *chip)
 	int soc, soc_change;
 	int time_since_last_change_sec, charge_time_sec = 0;
 	unsigned long last_change_sec;
-	struct timespec now;
 	struct qpnp_vadc_result result;
 	int batt_temp;
 	int rc;
@@ -1932,7 +1921,6 @@ static int report_cc_based_soc(struct qpnp_bms_chip *chip)
 	chip->last_soc = bound_soc(soc);
 	backup_soc_and_iavg(chip, batt_temp, chip->last_soc);
 	pr_debug("Reported SOC = %d\n", chip->last_soc);
-	chip->t_soc_queried = now;
 	mutex_unlock(&chip->last_soc_mutex);
 
 	return soc;
@@ -3971,11 +3959,11 @@ static int bms_request_irqs(struct qpnp_bms_chip *chip)
 	int rc;
 
 	SPMI_REQUEST_IRQ(chip, rc, sw_cc_thr);
-	chip->sw_cc_thr_irq.is_wake = true;
 	disable_bms_irq(&chip->sw_cc_thr_irq);
+	enable_irq_wake(chip->sw_cc_thr_irq.irq);
 	SPMI_REQUEST_IRQ(chip, rc, ocv_thr);
-	chip->ocv_thr_irq.is_wake = true;
 	disable_bms_irq(&chip->ocv_thr_irq);
+	enable_irq_wake(chip->ocv_thr_irq.irq);
 	return 0;
 }
 
@@ -4170,6 +4158,15 @@ static int read_iadc_channel_select(struct qpnp_bms_chip *chip)
 				return rc;
 			}
 		}
+	} else {
+		rc = qpnp_masked_write_iadc(chip,
+				IADC1_BMS_ADC_INT_RSNSN_CTL,
+				ADC_INT_RSNSN_CTL_MASK, 0x0);
+		if (rc) {
+			pr_err("Unable to set batfet config %x to %x: %d\n",
+				IADC1_BMS_ADC_INT_RSNSN_CTL, 0x0, rc);
+			return rc;
+		}
 	}
 
 	return 0;
@@ -4231,7 +4228,7 @@ static int setup_die_temp_monitoring(struct qpnp_bms_chip *chip)
 	return 0;
 }
 
-static int __devinit qpnp_bms_probe(struct spmi_device *spmi)
+static int qpnp_bms_probe(struct spmi_device *spmi)
 {
 	struct qpnp_bms_chip *chip;
 	bool warm_reset;
@@ -4483,7 +4480,7 @@ static const struct dev_pm_ops qpnp_bms_pm_ops = {
 
 static struct spmi_driver qpnp_bms_driver = {
 	.probe		= qpnp_bms_probe,
-	.remove		= __devexit_p(qpnp_bms_remove),
+	.remove		= qpnp_bms_remove,
 	.driver		= {
 		.name		= QPNP_BMS_DEV_NAME,
 		.owner		= THIS_MODULE,
